@@ -1,0 +1,5 @@
+Flask>=3.0
+requests>=2.31
+
+# Build-time only (uncomment to bundle the .exe)
+# pyinstaller>=6.0

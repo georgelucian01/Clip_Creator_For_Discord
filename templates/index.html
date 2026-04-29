@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Clip Creator</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">▶</span>
+      <span>Clip Creator</span>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn ghost" id="btn-outputs">Output</button>
+      <button class="btn ghost" id="btn-settings">Settings</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="dropzone" class="dropzone">
+      <div class="dropzone-inner">
+        <div class="dropzone-title">Drop videos here</div>
+        <div class="dropzone-sub">or click to browse</div>
+      </div>
+      <input type="file" id="file-input" accept="video/*" multiple hidden>
+    </section>
+
+    <section id="clips" class="clips"></section>
+
+    <section id="processbar" class="processbar hidden">
+      <div class="processbar-info">
+        <div id="process-status">Idle</div>
+        <div class="bar"><div id="process-fill" class="fill"></div></div>
+      </div>
+      <div class="processbar-actions">
+        <button class="btn ghost" id="btn-process">Process all</button>
+        <button class="btn primary" id="btn-process-send">Process &amp; Send all</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Output drawer -->
+  <aside id="output-drawer" class="drawer">
+    <div class="drawer-head">
+      <h3>Output</h3>
+      <div class="drawer-head-actions">
+        <button class="btn ghost small" id="btn-delete-all" title="Delete all output clips">Delete all</button>
+        <button class="btn ghost icon" data-close="output-drawer">✕</button>
+      </div>
+    </div>
+    <div id="output-list" class="output-list"></div>
+  </aside>
+
+  <!-- Settings modal -->
+  <div id="settings-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-head">
+        <h3>Settings</h3>
+        <button class="btn ghost icon" data-close="settings-modal">✕</button>
+      </div>
+      <div class="modal-body">
+
+        <div class="section">
+          <h4>Encoder</h4>
+          <div class="grid-2">
+            <label>
+              <span>Hardware</span>
+              <select name="hardware">
+                <option value="cpu">CPU (libx264/libx265)</option>
+                <option value="amd">AMD AMF</option>
+                <option value="nvidia">NVIDIA NVENC</option>
+                <option value="intel">Intel QSV</option>
+              </select>
+            </label>
+            <label>
+              <span>Codec</span>
+              <select name="codec">
+                <option value="h264">H.264</option>
+                <option value="hevc">HEVC / H.265</option>
+                <option value="av1">AV1</option>
+              </select>
+            </label>
+            <label>
+              <span>Container</span>
+              <select name="container">
+                <option value="mp4">MP4</option>
+                <option value="mkv">MKV</option>
+                <option value="webm">WebM</option>
+              </select>
+            </label>
+            <label>
+              <span>Target size (MB) <small>0 = no cap</small></span>
+              <input type="number" name="targetSizeMb" min="0" step="1">
+            </label>
+          </div>
+        </div>
+
+        <div class="section">
+          <h4>Defaults</h4>
+          <div class="grid-2">
+            <label>
+              <span>Vibrance <small id="vibrance-label">100%</small></span>
+              <input type="range" name="vibrance" min="50" max="200" step="5">
+            </label>
+            <label class="check">
+              <input type="checkbox" name="stretch">
+              <span>Stretch to 16:9 (auto-crop borders)</span>
+            </label>
+            <label class="full">
+              <span>FFmpeg path</span>
+              <input type="text" name="ffmpegPath" placeholder="ffmpeg/bin">
+            </label>
+          </div>
+        </div>
+
+        <div class="section">
+          <h4>Discord</h4>
+          <div class="grid-2">
+            <label class="full">
+              <span>Mode</span>
+              <select name="discordMode">
+                <option value="webhook">Webhook (recommended, no ToS risk)</option>
+                <option value="token">User token / Bot / Bearer</option>
+              </select>
+            </label>
+
+            <label class="full webhook-only">
+              <span>Webhook URL</span>
+              <input type="text" name="discordWebhook" placeholder="https://discord.com/api/webhooks/…/…">
+            </label>
+
+            <label class="full token-only">
+              <span>Channel ID</span>
+              <input type="text" name="discordChannelId" placeholder="1115263445844119562">
+            </label>
+            <label class="token-only">
+              <span>Token prefix</span>
+              <select name="discordTokenPrefix">
+                <option value="">(user token, no prefix)</option>
+                <option value="Bearer">Bearer</option>
+                <option value="Bot">Bot</option>
+              </select>
+            </label>
+            <label class="token-only">
+              <span>Token</span>
+              <input type="password" name="discordToken" placeholder="paste token">
+            </label>
+          </div>
+          <p class="muted small">
+            Tip: use a webhook (Channel → Edit → Integrations → Webhooks). User tokens technically
+            violate Discord ToS, even for personal use.
+          </p>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn ghost" data-close="settings-modal">Cancel</button>
+          <button class="btn primary" id="btn-save-settings">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Send-to-discord prompt -->
+  <div id="send-modal" class="modal">
+    <div class="modal-content small">
+      <div class="modal-head">
+        <h3>Send to Discord</h3>
+        <button class="btn ghost icon" data-close="send-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="full">
+          <span>Message (optional)</span>
+          <textarea id="send-content" rows="3" placeholder="caption…"></textarea>
+        </label>
+        <div id="send-target" class="muted small"></div>
+        <div class="modal-actions">
+          <button class="btn ghost" data-close="send-modal">Cancel</button>
+          <button class="btn primary" id="btn-send-confirm">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

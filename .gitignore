@@ -1,0 +1,38 @@
+# Secrets (contains Discord token + webhook)
+config.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+
+# PyInstaller
+build/
+dist/
+*.spec.bak
+
+# FFmpeg (~400 MB binary, downloaded separately)
+ffmpeg/
+
+# Runtime data
+uploads/
+output/
+ffmpeg2pass-*.log
+
+# Sample / test media
+*.mp4
+*.mkv
+*.mov
+*.webm
+*.avi
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp

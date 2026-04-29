@@ -1,0 +1,14 @@
+{
+  "ffmpegPath": "ffmpeg/bin",
+  "hardware": "cpu",
+  "codec": "h264",
+  "container": "mp4",
+  "targetSizeMb": 25,
+  "vibrance": 1.0,
+  "stretch": false,
+  "discordMode": "webhook",
+  "discordToken": "",
+  "discordTokenPrefix": "",
+  "discordChannelId": "",
+  "discordWebhook": ""
+}
