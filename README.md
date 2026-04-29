@@ -48,8 +48,8 @@ first run.
 ## Run from source
 
 ```cmd
-git clone https://github.com/<you>/<repo>.git
-cd <repo>
+git clone https://github.com/georgelucian01/Clip_Creator_For_Discord.git
+cd Clip_Creator_For_Discord
 python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
 .venv\Scripts\python app.py
