@@ -1088,7 +1088,8 @@ def build_filters(opts: dict, info: dict, source_height: int,
         notes.append(fps_note)
 
     if opts.get("stretch"):
-        # use detected black-bar crop instead of blindly stretching
+        # only crop+stretch when real black bars are detected. A clip with no
+        # bars (already 16:9) is left untouched - stretching it would distort.
         crop = info.get("detected_crop")
         sw = int(info.get("width", 0) or 0)
         sh = int(info.get("height", 0) or 0)
@@ -1096,12 +1097,14 @@ def build_filters(opts: dict, info: dict, source_height: int,
             cw, ch, cx, cy = crop
             vf.append(f"crop={cw}:{ch}:{cx}:{cy}")
             notes.append(f"stretchTo169: cropping black bars to {cw}x{ch}")
+            out_w = (round(target_height * 16 / 9) // 2) * 2
+            vf.append(f"scale={out_w}:{target_height}:flags=lanczos")
+            vf.append("setsar=1")
         else:
-            notes.append("WARNING: stretchTo169 enabled but no black bars "
-                         "detected - image will be distorted")
-        out_w = (round(target_height * 16 / 9) // 2) * 2
-        vf.append(f"scale={out_w}:{target_height}:flags=lanczos")
-        vf.append("setsar=1")
+            notes.append("stretchTo169: no black bars detected - leaving "
+                         "aspect ratio unchanged")
+            if source_height > target_height:
+                vf.append(f"scale=-2:{target_height}:flags=lanczos")
     elif source_height > target_height:
         # -2 keeps width divisible by 2 while preserving aspect ratio
         vf.append(f"scale=-2:{target_height}:flags=lanczos")
