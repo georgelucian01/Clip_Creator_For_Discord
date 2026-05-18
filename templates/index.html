@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Clip Creator</title>
+  <title>Clip Creator — Smart Pipeline Edition</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -11,14 +11,24 @@
     <div class="brand">
       <span class="logo">▶</span>
       <span>Clip Creator</span>
+      <span class="badge" title="Special build: three-mode pipeline that skips re-encoding when possible and auto-tunes for size targets.">Smart Pipeline Edition</span>
     </div>
     <div class="topbar-actions">
+      <span id="health-dot" class="health-dot" title="Checking ffmpeg…"></span>
+      <button class="btn ghost icon" id="btn-theme" title="Toggle light / dark mode" aria-label="Toggle theme">☀</button>
+      <button class="btn ghost icon" id="btn-shortcuts" title="Keyboard shortcuts" aria-label="Keyboard shortcuts">⌨</button>
+      <button class="btn ghost icon" id="btn-docs" title="Help & documentation" aria-label="Help">?</button>
       <button class="btn ghost" id="btn-outputs">Output</button>
       <button class="btn ghost" id="btn-settings">Settings</button>
     </div>
   </header>
 
   <main>
+    <div id="upload-compact" class="upload-compact hidden">
+      <button type="button" class="btn ghost small" id="btn-add-more">+ Add videos</button>
+      <span id="upload-compact-hint" class="muted small"></span>
+    </div>
+
     <section id="dropzone" class="dropzone">
       <div class="dropzone-inner">
         <div class="dropzone-title">Drop videos here</div>
@@ -27,17 +37,24 @@
       <input type="file" id="file-input" accept="video/*" multiple hidden>
     </section>
 
-    <section id="clips" class="clips"></section>
+    <section id="queue-bar" class="queue-bar hidden">
+      <div class="queue-bar-inner">
+        <span class="queue-label">Queue</span>
+        <span id="queue-count" class="queue-count">0</span>
+        <div id="queue-strip" class="queue-strip"></div>
+        <button type="button" class="btn ghost small queue-expand-btn" id="btn-queue-expand" title="Expand queue names">▾</button>
+      </div>
+    </section>
 
-    <section id="processbar" class="processbar hidden">
-      <div class="processbar-info">
-        <div id="process-status">Idle</div>
-        <div class="bar"><div id="process-fill" class="fill"></div></div>
+    <section id="editor-slot" class="editor-slot"></section>
+
+    <section id="processing" class="processing hidden">
+      <div class="processing-head">
+        <h3>Processing <span id="processing-summary" class="muted small"></span></h3>
+        <button type="button" class="btn ghost small processing-toggle hidden" id="btn-processing-toggle" title="Expand/collapse">▾</button>
       </div>
-      <div class="processbar-actions">
-        <button class="btn ghost" id="btn-process">Process all</button>
-        <button class="btn primary" id="btn-process-send">Process &amp; Send all</button>
-      </div>
+      <div id="processing-compact" class="processing-compact hidden"></div>
+      <div id="processing-list" class="processing-list"></div>
     </section>
   </main>
 
@@ -46,9 +63,21 @@
     <div class="drawer-head">
       <h3>Output</h3>
       <div class="drawer-head-actions">
+        <button class="btn ghost small" id="btn-send-selected" title="Send checked clips to Discord">Send selected</button>
         <button class="btn ghost small" id="btn-delete-all" title="Delete all output clips">Delete all</button>
         <button class="btn ghost icon" data-close="output-drawer">✕</button>
       </div>
+    </div>
+    <div class="output-toolbar">
+      <label class="output-sort-label muted small">
+        Sort
+        <select id="output-sort" class="output-sort">
+          <option value="newest">Newest</option>
+          <option value="oldest">Oldest</option>
+          <option value="name">Name</option>
+          <option value="size">Size</option>
+        </select>
+      </label>
     </div>
     <div id="output-list" class="output-list"></div>
   </aside>
@@ -62,10 +91,25 @@
       </div>
       <div class="modal-body">
 
-        <div class="section">
-          <h4>Encoder</h4>
+        <div id="settings-summary" class="settings-summary" aria-live="polite"></div>
+        <div id="settings-warnings" class="settings-warnings hidden" role="alert"></div>
+
+        <div class="preset-row">
+          <div>
+            <div class="preset-title">Presets</div>
+            <div class="muted small">One-click setting bundles. Each fills the form below — review, then Save.</div>
+          </div>
+          <div class="preset-buttons">
+            <button class="btn" id="btn-preset-discord" title="Field-tested Discord config: AV1 10-bit + Opus in WebM, two-pass, source resolution, medium denoise, stretch-to-16:9, free tier with auto-retry.">Discord</button>
+            <button class="btn" id="btn-preset-quality" title="Best possible quality: CPU AV1, two-pass, 10-bit, source resolution &amp; fps.">Max quality</button>
+            <button class="btn" id="btn-preset-speed" title="Fastest encode: hardware HEVC, single-pass, fast preset.">Fast</button>
+          </div>
+        </div>
+
+        <details class="section" open>
+          <summary><span class="section-icon">⚙</span><h4>Encoder</h4></summary>
           <div class="grid-2">
-            <label>
+            <label title="Which encoder family to use. Match this to your GPU; CPU works on any machine but is slower.">
               <span>Hardware</span>
               <select name="hardware">
                 <option value="cpu">CPU (libx264/libx265)</option>
@@ -74,7 +118,7 @@
                 <option value="intel">Intel QSV</option>
               </select>
             </label>
-            <label>
+            <label title="Video compression format. AV1 = best quality per MB. HEVC = good balance. H.264 = most compatible.">
               <span>Codec</span>
               <select name="codec">
                 <option value="h264">H.264</option>
@@ -82,7 +126,7 @@
                 <option value="av1">AV1</option>
               </select>
             </label>
-            <label>
+            <label title="Output file format wrapper. MP4 = most compatible, MKV = flexible, WEBM = web-native.">
               <span>Container</span>
               <select name="container">
                 <option value="mp4">MP4</option>
@@ -90,35 +134,197 @@
                 <option value="webm">WebM</option>
               </select>
             </label>
-            <label>
+            <label title="Maximum output file size in megabytes. Set 0 to disable and use constant quality instead.">
               <span>Target size (MB) <small>0 = no cap</small></span>
               <input type="number" name="targetSizeMb" min="0" step="1">
             </label>
+            <label class="check" title="GPU-decode the input video (-hwaccel auto). Falls back to software silently if unsupported.">
+              <input type="checkbox" name="hwaccelDecode">
+              <span>Hardware-accelerated decoding</span>
+            </label>
+            <label title="CRF mode only: peak-bitrate ceiling multiplier. Stops complex clips ballooning. 1.0-5.0.">
+              <span>CRF maxrate multiplier</span>
+              <input type="number" name="crfMaxrateMultiplier" min="1" max="5" step="0.1">
+            </label>
+            <label title="Quality vs speed trade-off. Quality is slowest and best; Fast is quickest. Sets the encoder preset.">
+              <span>Encode speed</span>
+              <select name="encodeSpeed">
+                <option value="quality">Quality (slowest, best)</option>
+                <option value="balanced">Balanced</option>
+                <option value="fast">Fast (quickest)</option>
+              </select>
+            </label>
           </div>
-        </div>
+          <p class="muted small">Note: the Discord tier below overrides the target size.</p>
+        </details>
 
-        <div class="section">
-          <h4>Defaults</h4>
+        <details class="section" open>
+          <summary><span class="section-icon">⚡</span><h4>Smart pipeline</h4></summary>
           <div class="grid-2">
-            <label>
+            <label title="Output resolution. Auto picks the best height for your bitrate budget.">
+              <span>Output height</span>
+              <select name="outputHeight">
+                <option value="auto">Auto (match bitrate)</option>
+                <option value="source">Source (no downscale)</option>
+                <option value="1440">1440p</option>
+                <option value="1080">1080p</option>
+                <option value="720">720p</option>
+                <option value="540">540p</option>
+                <option value="480">480p</option>
+              </select>
+            </label>
+            <label title="When to switch from hardware to CPU encoding for better quality.">
+              <span>Encoder quality mode</span>
+              <select name="encoderQualityMode">
+                <option value="auto">Auto (CPU swap at low bitrate)</option>
+                <option value="hardware_always">Hardware always</option>
+                <option value="software_always">Software always</option>
+              </select>
+            </label>
+            <label title="Noise-reduction strength used at low bitrates. Stronger = cleaner but softer.">
+              <span>Denoise strength</span>
+              <select name="denoiseStrength">
+                <option value="light">Light</option>
+                <option value="medium">Medium</option>
+                <option value="strong">Strong</option>
+              </select>
+            </label>
+            <label class="check" title="Analyze the clip first, then encode for accurate size targeting and better quality distribution.">
+              <input type="checkbox" name="twoPass">
+              <span>Two-pass encoding (accurate size targeting)</span>
+            </label>
+            <label class="check" title="Higher color precision per pixel. Smoother gradients, less banding. HEVC/AV1 only.">
+              <input type="checkbox" name="tenBit">
+              <span>10-bit output (HEVC / AV1 — less banding)</span>
+            </label>
+            <label class="check" title="Cleans up noise before encoding so bits go to real detail. Only active below ~1.5 Mbps.">
+              <input type="checkbox" name="lowBitrateDenoise">
+              <span>Low-bitrate denoise (cleaner tight clips)</span>
+            </label>
+            <label title="Output frame rate. Auto drops a 60fps source toward 30 when the bitrate is tight. Minimum is always 30.">
+              <span>Frame rate</span>
+              <select name="fpsMode">
+                <option value="auto">Auto (drop 60 → 30 when tight)</option>
+                <option value="source">Don't change</option>
+                <option value="60">60 fps</option>
+                <option value="48">48 fps</option>
+                <option value="30">30 fps</option>
+                <option value="custom">Custom…</option>
+              </select>
+            </label>
+            <label title="Custom frame-rate target (fps). Used when Frame rate is set to Custom. Minimum 30, never upscales above the source." id="fps-custom-wrap">
+              <span>Custom fps target</span>
+              <input type="number" name="fpsCustom" min="30" max="240" step="1">
+            </label>
+            <label class="check" title="Tone-map HDR sources to SDR (BT.709) so colors look right on normal displays.">
+              <input type="checkbox" name="hdrToneMap">
+              <span>HDR → SDR tone mapping</span>
+            </label>
+            <label class="check" title="Cut at exactly the requested frame. Forces re-encoding, disables the lossless fast path.">
+              <input type="checkbox" name="frameAccurateCut">
+              <span>Frame-accurate cut (forces re-encode)</span>
+            </label>
+          </div>
+        </details>
+
+        <details class="section" open>
+          <summary><span class="section-icon">♪</span><h4>Audio</h4></summary>
+          <div class="grid-2">
+            <label title="Audio quality. Auto scales with the size budget to free bits for video.">
+              <span>Audio bitrate</span>
+              <select name="audioBitrateMode">
+                <option value="auto">Auto (scales with budget)</option>
+                <option value="64">64 kbps</option>
+                <option value="96">96 kbps</option>
+                <option value="128">128 kbps</option>
+                <option value="192">192 kbps</option>
+                <option value="256">256 kbps</option>
+              </select>
+            </label>
+            <label title="Audio compression. Opus is far better at low bitrates; AAC is more universally compatible.">
+              <span>Audio codec</span>
+              <select name="audioCodec">
+                <option value="aac">AAC</option>
+                <option value="opus">Opus (better at low bitrates)</option>
+              </select>
+            </label>
+            <label class="check" title="EBU R128 loudness normalization (-16 LUFS) for consistent volume across clips.">
+              <input type="checkbox" name="normalizeAudio">
+              <span>Loudness normalization (EBU R128)</span>
+            </label>
+            <label title="Boost output loudness on top of normalization. Presets add +3 / +6 / +10 dB; Custom sets an exact dB gain.">
+              <span>Volume boost</span>
+              <select name="volumeBoost">
+                <option value="none">None</option>
+                <option value="low">Low (+3 dB)</option>
+                <option value="medium">Medium (+6 dB)</option>
+                <option value="high">High (+10 dB)</option>
+                <option value="custom">Custom…</option>
+              </select>
+            </label>
+            <label title="Custom volume boost in decibels. Used when Volume boost is set to Custom." id="volume-custom-wrap">
+              <span>Custom boost (dB)</span>
+              <input type="number" name="volumeBoostDb" min="-20" max="30" step="0.5">
+            </label>
+          </div>
+        </details>
+
+        <details class="section">
+          <summary><span class="section-icon">✦</span><h4>Defaults</h4></summary>
+          <div class="grid-2">
+            <label title="Color saturation boost (100% = no change). Any value other than 100% forces re-encoding.">
               <span>Vibrance <small id="vibrance-label">100%</small></span>
               <input type="range" name="vibrance" min="50" max="200" step="5">
             </label>
-            <label class="check">
+            <label class="check" title="Auto-crop black borders and stretch to 1920×1080. For 4:3 stretched-resolution gameplay.">
               <input type="checkbox" name="stretch">
               <span>Stretch to 16:9 (auto-crop borders)</span>
             </label>
-            <label class="full">
+            <label class="full" title="Folder containing ffmpeg.exe and ffprobe.exe. Relative paths resolve from the program directory.">
               <span>FFmpeg path</span>
               <input type="text" name="ffmpegPath" placeholder="ffmpeg/bin">
             </label>
           </div>
-        </div>
+        </details>
 
-        <div class="section">
-          <h4>Discord</h4>
+        <details class="section">
+          <summary><span class="section-icon">▤</span><h4>Jobs</h4></summary>
           <div class="grid-2">
-            <label class="full">
+            <label title="How many clips can encode in parallel. Lower values give each job more resources. Restart to apply.">
+              <span>Max concurrent jobs <small>restart to apply</small></span>
+              <input type="number" name="maxConcurrentJobs" min="1" max="8" step="1">
+            </label>
+            <label title="Default action for the editor's DONE button. Process queues the encode; Process &amp; send also uploads the result to Discord when it finishes.">
+              <span>DONE button default</span>
+              <select name="doneAction">
+                <option value="process">Process</option>
+                <option value="process_send">Process &amp; send to Discord</option>
+              </select>
+            </label>
+            <label title="On startup, delete uploaded and output files older than this many days. Set 0 to never auto-delete.">
+              <span>Auto-cleanup age (days) <small>0 = never</small></span>
+              <input type="number" name="cleanupDays" min="0" max="365" step="1">
+            </label>
+          </div>
+        </details>
+
+        <details class="section">
+          <summary><span class="section-icon">✈</span><h4>Discord</h4></summary>
+          <div class="grid-2">
+            <label title="Discord's file-size limit by plan. Overrides the Target size value above.">
+              <span>Upload tier <small>overrides target size</small></span>
+              <select name="discordTier">
+                <option value="free">Free (10 MB)</option>
+                <option value="basic">Basic (50 MB)</option>
+                <option value="nitro">Nitro (500 MB)</option>
+              </select>
+            </label>
+            <label class="check" title="If Discord rejects the upload as too large, re-encode at 80% size and try again once.">
+              <input type="checkbox" name="autoRetryOnDiscordReject">
+              <span>Auto-retry on size reject (re-encode at 80%)</span>
+            </label>
+
+            <label class="full" title="How to send to Discord. Webhook = simple URL. Token = your user/bot account.">
               <span>Mode</span>
               <select name="discordMode">
                 <option value="webhook">Webhook (recommended, no ToS risk)</option>
@@ -126,16 +332,19 @@
               </select>
             </label>
 
-            <label class="full webhook-only">
+            <label class="full webhook-only" title="Full Discord webhook URL. Create one under Server Settings → Integrations → Webhooks.">
               <span>Webhook URL</span>
-              <input type="text" name="discordWebhook" placeholder="https://discord.com/api/webhooks/…/…">
+              <span class="input-row">
+                <input type="text" name="discordWebhook" placeholder="https://discord.com/api/webhooks/…/…">
+                <button type="button" class="btn ghost small" data-copy="discordWebhook" title="Copy to clipboard">Copy</button>
+              </span>
             </label>
 
-            <label class="full token-only">
+            <label class="full token-only" title="Numeric ID of the target channel. Right-click channel in Discord → Copy ID (requires Developer Mode).">
               <span>Channel ID</span>
-              <input type="text" name="discordChannelId" placeholder="1115263445844119562">
+              <input type="text" name="discordChannelId" placeholder="channel id">
             </label>
-            <label class="token-only">
+            <label class="token-only" title="Auth header prefix. Blank for user tokens, &quot;Bot&quot; for bot tokens, &quot;Bearer&quot; for OAuth.">
               <span>Token prefix</span>
               <select name="discordTokenPrefix">
                 <option value="">(user token, no prefix)</option>
@@ -143,16 +352,19 @@
                 <option value="Bot">Bot</option>
               </select>
             </label>
-            <label class="token-only">
+            <label class="token-only" title="Your Discord user or bot authentication token. Never share this.">
               <span>Token</span>
-              <input type="password" name="discordToken" placeholder="paste token">
+              <span class="input-row">
+                <input type="password" name="discordToken" placeholder="paste token">
+                <button type="button" class="btn ghost small" data-copy="discordToken" title="Copy to clipboard">Copy</button>
+              </span>
             </label>
           </div>
           <p class="muted small">
             Tip: use a webhook (Channel → Edit → Integrations → Webhooks). User tokens technically
             violate Discord ToS, even for personal use.
           </p>
-        </div>
+        </details>
 
         <div class="modal-actions">
           <button class="btn ghost" data-close="settings-modal">Cancel</button>
@@ -183,7 +395,80 @@
     </div>
   </div>
 
-  <div id="toast" class="toast"></div>
+  <!-- Docs / help modal -->
+  <div id="docs-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-head">
+        <h3>Help &amp; Documentation</h3>
+        <button class="btn ghost icon" data-close="docs-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="docs-content" class="docs">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Job detail modal -->
+  <div id="job-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-head">
+        <h3>Job detail</h3>
+        <button class="btn ghost icon" data-close="job-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <video id="job-preview" class="job-preview hidden" controls preload="metadata"></video>
+        <img id="job-thumb" class="job-thumb hidden" alt="job thumbnail">
+        <div id="job-summary" class="job-summary"></div>
+        <div class="job-log-head">
+          <span class="muted small">ffmpeg log</span>
+          <button class="btn ghost small" id="btn-copy-log" title="Copy log to clipboard">Copy log</button>
+        </div>
+        <pre id="job-log" class="job-log">No log yet.</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shortcuts -->
+  <div id="shortcuts-modal" class="modal">
+    <div class="modal-content small">
+      <div class="modal-head">
+        <h3>Keyboard shortcuts</h3>
+        <button class="btn ghost icon" data-close="shortcuts-modal">✕</button>
+      </div>
+      <div class="modal-body shortcuts-body">
+        <table class="shortcuts-table">
+          <tbody>
+            <tr><td><kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>Finish clip (DONE)</td></tr>
+            <tr><td><kbd>Esc</kbd></td><td>Close modal / drawer</td></tr>
+            <tr><td><kbd>Space</kbd></td><td>Play / pause (editor)</td></tr>
+            <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>Step one frame</td></tr>
+            <tr><td><kbd>Shift</kbd>+<kbd>←</kbd> / <kbd>→</kbd></td><td>Step 1 second</td></tr>
+            <tr><td><kbd>I</kbd> / <kbd>O</kbd></td><td>Set in / out on active segment</td></tr>
+          </tbody>
+        </table>
+        <p class="muted small">Click a queued clip thumbnail to switch which clip you are editing.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm -->
+  <div id="confirm-modal" class="modal">
+    <div class="modal-content small">
+      <div class="modal-head">
+        <h3 id="confirm-title">Confirm</h3>
+        <button class="btn ghost icon" data-close="confirm-modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-msg"></p>
+        <div class="modal-actions">
+          <button class="btn ghost" data-close="confirm-modal">Cancel</button>
+          <button class="btn danger" id="confirm-ok">OK</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="/static/app.js"></script>
 </body>
