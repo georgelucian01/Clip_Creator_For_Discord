@@ -9,6 +9,14 @@ __pycache__/
 venv/
 env/
 *.egg-info/
+.pytest_cache/
+
+# Claude Code working files
+.claude/
+
+# Generated sidecar files (regenerated at runtime)
+encoder_cache.json
+jobs_state.json
 
 # PyInstaller
 build/

@@ -1,5 +1,14 @@
 Flask>=3.0
 requests>=2.31
+Werkzeug>=3.0
+
+# Phase 2 added NO new Python dependencies. Thumbnail generation, HDR/crop
+# detection, capability probing and the integrity check all run through the
+# bundled ffmpeg/ffprobe binaries - nothing extra to install.
 
 # Build-time only (uncomment to bundle the .exe)
 # pyinstaller>=6.0
+
+# Dev-only - the smoke test suite in tests/. Not bundled into the .exe.
+# Install with: pip install pytest
+# pytest>=8.0
