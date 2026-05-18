@@ -246,6 +246,13 @@ main {
   background: #fff; pointer-events: none;
   box-shadow: 0 0 4px rgba(0,0,0,0.9); left: 0;
 }
+.tl-playhead-idx {
+  position: absolute; top: 2px; left: 50%; transform: translateX(-50%);
+  min-width: 14px; height: 14px; line-height: 14px; padding: 0 3px;
+  font-size: 10px; font-weight: 700; text-align: center;
+  color: #fff; background: var(--accent); border-radius: 7px;
+  box-shadow: 0 0 4px rgba(0,0,0,0.9);
+}
 .tl-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .tl-loop.on { color: var(--ok); border-color: var(--ok); }
 .keep-readout { margin-left: auto; }
