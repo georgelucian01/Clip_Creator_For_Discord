@@ -496,7 +496,7 @@
           <div class="tl-film"></div>
           <div class="tl-gaps"></div>
           <div class="tl-segs"></div>
-          <div class="tl-playhead"></div>
+          <div class="tl-playhead"><span class="tl-playhead-idx"></span></div>
         </div>
         <div class="tl-toolbar">
           <button class="btn ghost small tl-play" title="Play / pause (Space)">▶ Play</button>
@@ -551,6 +551,7 @@
     const video = card.querySelector("video");
     const timeline = card.querySelector(".timeline");
     const playhead = card.querySelector(".tl-playhead");
+    const playheadIdx = card.querySelector(".tl-playhead-idx");
     const playBtn = card.querySelector(".tl-play");
     const loopBtn = card.querySelector(".tl-loop");
 
@@ -645,6 +646,7 @@
       const badge = card.querySelector(".cut-badge");
       badge.textContent = pm.label;
       badge.className = `cut-badge ${pm.cls}`;
+      updatePlayheadIdx();
     }
 
     // full rebuild of segment blocks + segment list, then re-bind events
@@ -776,8 +778,16 @@
       }
     };
 
+    function updatePlayheadIdx() {
+      const t = video.currentTime;
+      const i = clip.segments.findIndex((s) => t >= s.start && t < s.end);
+      if (i >= 0) { playheadIdx.textContent = i + 1; playheadIdx.style.display = ""; }
+      else { playheadIdx.style.display = "none"; }
+    }
+
     video.addEventListener("timeupdate", () => {
       playhead.style.left = pct(video.currentTime) + "%";
+      updatePlayheadIdx();
       if (clip._looping) {
         const segs = sortedSegs();
         if (!segs.length) return;
